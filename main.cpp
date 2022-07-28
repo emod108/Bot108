@@ -29,6 +29,7 @@ int main(int argc, const char* argv[])
             std::thread t(&Bot108::getStatsRoles, std::ref(bot), event);
             t.detach();
             return;
+
         }
     });
 

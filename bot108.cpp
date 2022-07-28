@@ -99,14 +99,18 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
             std::vector<VZRole> vampRoles;
             std::vector<VZRole> humanRoles;
 
+            vampRoles.reserve(50);
+            humanRoles.reserve(50);
+
             // Looking through every guild's role
             for (const auto& [roleID, role] : roleMap) {
+
                 // Checking ending and getting number
                 std::string::size_type sz;
                 if (role.name.find("H Kills") != std::string::npos) {
                     sz = role.name.find_first_of("+");
                     if (sz == std::string::npos)
-                        return;
+                        continue;
 
                     try
                     {
@@ -120,7 +124,7 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
                 else if (role.name.find("H Wins") != std::string::npos) {
                     sz = role.name.find_first_of("+");
                     if (sz == std::string::npos)
-                        return;
+                        continue;
 
                     try {
                         double number = std::stod(role.name);
