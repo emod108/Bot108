@@ -29,7 +29,6 @@ int main(int argc, const char* argv[])
             std::thread t(&Bot108::getStatsRoles, std::ref(bot), event);
             t.detach();
             return;
-
         }
     });
 
@@ -39,7 +38,7 @@ int main(int argc, const char* argv[])
         if (dpp::run_once<struct register_bot_commands>()) {
 
             dpp::slashcommand getStatsRolesCommand("get_stats_roles", "Get roles for your stats on VZ."
-            " Your Discord must be linked to Hypixel and API turned on.", bot.me.id);
+            " Your Discord must be linked to Hypixel.", bot.me.id);
             getStatsRolesCommand.add_option(
                     dpp::command_option(dpp::co_string, "username", "Your username on Hypixel", true)
             );

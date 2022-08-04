@@ -136,6 +136,7 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
                 }
             }
 
+            // If no correct roles found
             if (vampRoles.size() == 0 || humanRoles.size() == 0) {
                 event.reply("This guild doesn't have human or vampire stats roles present.");
                 return;
@@ -145,82 +146,21 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
             const uint32_t humanKills = dataJSON.at("player").at("stats").at("VampireZ").at("human_kills");
             const uint32_t humanWins = dataJSON.at("player").at("stats").at("VampireZ").at("human_wins");
 
-            uint32_t vampRoleIndex = -1;
-            uint32_t humanRoleIndex = -1;
-
-            // Checking all found V roles
-            for (int i = 0; i < vampRoles.size(); ++i) {
-                // Number of human kills must be higher than role has
-                if (humanKills < vampRoles[i].number)
-                    continue;
-
-                // If role with highest number isn't set yet, then set current one
-                // Otherwise, compare numbers and pick the highest one
-                if (vampRoleIndex == -1)
-                    vampRoleIndex = i;
-                else
-                    vampRoleIndex = (vampRoles[i].number > vampRoles[vampRoleIndex].number) ? i : vampRoleIndex;
-            }
-
-            // Same for H roles
-            for (int i = 0; i < humanRoles.size(); ++i) {
-                if (humanWins < humanRoles[i].number)
-                    continue;
-
-                if (humanRoleIndex == -1)
-                    humanRoleIndex = i;
-                else
-                    humanRoleIndex = (humanRoles[i].number > humanRoles[humanRoleIndex].number) ? i : humanRoleIndex;
-            }
-
-            // Checking old roles and removing them if needed
-            for (const auto &oldRole : guildMember.roles) {
-                // If at least one suitable vamp role was found
-                bool roleWasFound = false;
-                if (vampRoleIndex != -1) {
-                    for (const auto &vampRole : vampRoles) {
-                        if (oldRole == vampRole.roleID) {
-                            // If role was found, then stop checking roles
-                            roleWasFound = true;
-
-                            // Remove if it's not highest possible
-                            if (oldRole == vampRoles[vampRoleIndex].roleID)
-                                vampRoleIndex = -1;
-                            else
-                                this->guild_member_remove_role(guildMember.guild_id, guildMember.user_id, oldRole);
-
-                            break;
-                        }
-                    }
-                }
-
-                // Doing same for human
-                if (!roleWasFound && humanRoleIndex != -1) {
-                    for (const auto &humanRole : humanRoles) {
-                        if (oldRole == humanRole.roleID) {
-                            if (oldRole == humanRoles[humanRoleIndex].roleID)
-                                humanRoleIndex = -1;  
-                            else
-                                this->guild_member_remove_role(guildMember.guild_id, guildMember.user_id, oldRole);
-
-                            break;
-                        }
-                    }
-                }
-            }
-
             // Give new roles
-            if (vampRoleIndex != -1)
-                this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, vampRoles[vampRoleIndex].roleID);
-            if (humanRoleIndex != -1)
-                this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, humanRoles[humanRoleIndex].roleID);
 
-            if (vampRoleIndex == -1 && humanRoleIndex == -1) {
-                event.reply("No new roles were assigned.");
-                return;
+            // Vamp roles
+            for (const auto& role : vampRoles) {
+                if (role.number <= humanKills)
+                    this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
             }
 
-            event.reply("New roles were assigned.");
+            // Human roles
+            for (const auto& role : humanRoles) {
+                if (role.number <= humanWins)
+                    this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
+            }
+
+            event.reply("Done.");
         });
     });
 }
