@@ -39,7 +39,8 @@ void Bot108::addToList(const dpp::snowflake userID)
     recentUsers.push_back(userID);
 }
 
-void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
+void Bot108::getStatsRoles(const dpp::slashcommand_t &event, void (Bot108::*givingMethod)(const dpp::slashcommand_t &,
+    const std::vector<VZRole>&, const std::vector<VZRole>&, const dpp::guild_member&, const uint32_t, const uint32_t))
 {
     // Getting Minecraft username
     const std::string minecraftUsername = std::get<std::string>(event.get_parameter("username"));
@@ -47,7 +48,7 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
     // First API request
     // Converting minecraft username to uuid using Mojang API
     this->request(MOJANG_API + minecraftUsername, dpp::http_method::m_get,
-    [this, event] (const dpp::http_request_completion_t &got)
+    [this, event, givingMethod] (const dpp::http_request_completion_t &got)
     {
         // Error checking
         if (got.status != MC_RESPONSE_SUCCESS) {
@@ -62,7 +63,7 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
         // Second API request
         // Getting discord from Hypixel and checking if it's same
         this->request(HYPIXEL_API + REQUEST_PLAYER + FIELD_KEY + HYPIXEL_API_KEY + FIELD_SEPARATOR + FIELD_UUID + uuid,
-        dpp::http_method::m_get, [this, event]
+        dpp::http_method::m_get, [this, event, givingMethod]
         (const dpp::http_request_completion_t &got)
         {
             // Checking status
@@ -90,6 +91,10 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
                 event.reply("Your Discord is not linked to this Hypixel account!");
                 return;
             }
+
+            // Getting stats
+            const uint32_t humanKills = dataJSON.at("player").at("stats").at("VampireZ").at("human_kills");
+            const uint32_t humanWins = dataJSON.at("player").at("stats").at("VampireZ").at("human_wins");
 
             dpp::guild_member guildMember = this->guild_get_member_sync(event.command.guild_id, event.command.usr.id);
             dpp::role_map roleMap = this->roles_get_sync(guildMember.guild_id);
@@ -142,27 +147,100 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event)
                 return;
             }
 
-            // Getting stats
-            const uint32_t humanKills = dataJSON.at("player").at("stats").at("VampireZ").at("human_kills");
-            const uint32_t humanWins = dataJSON.at("player").at("stats").at("VampireZ").at("human_wins");
-
-            // Give new roles
-
-            // Vamp roles
-            for (const auto& role : vampRoles) {
-                if (role.number <= humanKills)
-                    this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
-            }
-
-            // Human roles
-            for (const auto& role : humanRoles) {
-                if (role.number <= humanWins)
-                    this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
-            }
-
-            event.reply("Done.");
+            (*this.*givingMethod)(event, vampRoles, humanRoles, guildMember, humanKills, humanWins);
         });
     });
+}
+
+
+void Bot108::getAllStatsRoles(const dpp::slashcommand_t &event, const std::vector<VZRole> &vampRoles,
+    const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const uint32_t humanKills,
+    const uint32_t humanWins)
+{
+    // Give all vamp roles
+    for (const auto& role : vampRoles) {
+        if (role.number <= humanKills)
+            this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
+        }
+
+    // Give all human roles
+    for (const auto& role : humanRoles) {
+        if (role.number <= humanWins)
+            this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
+    }
+
+    event.reply("Done.");
+}
+
+void Bot108::getBestStatsRoles(const dpp::slashcommand_t &event, const std::vector<VZRole> &vampRoles,
+    const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const uint32_t humanKills,
+    const uint32_t humanWins)
+{
+    uint32_t vampRoleIndex = -1;
+    uint32_t humanRoleIndex = -1;
+
+    // Checking all found V roles
+    for (int i = 0; i < vampRoles.size(); ++i) {
+        // Number of human kills must be higher than role has
+        if (humanKills < vampRoles[i].number)
+            continue;
+
+        // If role with highest number isn't set yet, then set current one
+        // Otherwise, compare numbers and pick the highest one
+        if (vampRoleIndex == -1)
+            vampRoleIndex = i;
+        else
+            vampRoleIndex = (vampRoles[i].number > vampRoles[vampRoleIndex].number) ? i : vampRoleIndex;
+    }
+
+    // Same for H roles
+    for (int i = 0; i < humanRoles.size(); ++i) {
+        if (humanWins < humanRoles[i].number)
+            continue;
+            
+        if (humanRoleIndex == -1)
+            humanRoleIndex = i;
+        else
+            humanRoleIndex = (humanRoles[i].number > humanRoles[humanRoleIndex].number) ? i : humanRoleIndex;
+    }
+
+    // Checking old roles and removing them if needed
+    for (const auto &oldRole : guildMember.roles) {
+        // If at least one suitable vamp role was found
+        bool roleWasFound = false;
+        if (vampRoleIndex != -1) {
+            for (const auto &vampRole : vampRoles) {
+                if (oldRole == vampRole.roleID) {
+                    // If role was found, then stop checking roles
+                    roleWasFound = true;
+
+                    // Remove if it's not highest possible
+                    if (oldRole != vampRoles[vampRoleIndex].roleID)
+                        this->guild_member_remove_role(guildMember.guild_id, guildMember.user_id, oldRole);
+                    break;
+                }
+            }
+        }
+
+        // Doing same for human
+        if (!roleWasFound && humanRoleIndex != -1) {
+            for (const auto &humanRole : humanRoles) {
+                if (oldRole == humanRole.roleID) {
+                    if (oldRole != humanRoles[humanRoleIndex].roleID)
+                        this->guild_member_remove_role(guildMember.guild_id, guildMember.user_id, oldRole);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Give new roles
+    if (vampRoleIndex != -1)
+        this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, vampRoles[vampRoleIndex].roleID);
+    if (humanRoleIndex != -1)
+        this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, humanRoles[humanRoleIndex].roleID);
+
+    event.reply("Done.");
 }
 
 std::string Bot108::getErrorReason(const uint16_t status) const

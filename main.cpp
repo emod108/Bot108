@@ -12,21 +12,40 @@ int main(int argc, const char* argv[])
     // Unfortunately you can't use switch with case strings :(
     bot.on_slashcommand([&bot](const dpp::slashcommand_t& event) {
         const std::string command = event.command.get_command_name();
-        if (command == "get_stats_roles") {
+        if (command == "get_all_stats_roles") {
             if (bot.isListed(event.command.usr.id)) {
-                event.reply("You have already used this command recently. Wait for 1-2 minutes before trying again.");
+                event.reply("You have already used similar command recently. Wait for 1-2 minutes before trying again.");
                 return;
             }
 
             if (!bot.canFit()) {
-                event.reply("Sorry, but too many users used this command recently. Wait for 1-2 minutes before trying again.");
+                event.reply("Sorry, but too many users used similar command recently. Wait for 1-2 minutes before trying again.");
                 return;
             }
 
             bot.addToList(event.command.usr.id);
 
             // Making another thread for this because it uses blocking commands
-            std::thread t(&Bot108::getStatsRoles, std::ref(bot), event);
+            std::thread t(&Bot108::getStatsRoles, std::ref(bot), event, &Bot108::getAllStatsRoles);
+            t.detach();
+            return;
+        }
+
+        if (command == "get_best_stats_roles") {
+            if (bot.isListed(event.command.usr.id)) {
+                event.reply("You have already used similar command recently. Wait for 1-2 minutes before trying again.");
+                return;
+            }
+
+            if (!bot.canFit()) {
+                event.reply("Sorry, but too many users used similar command recently. Wait for 1-2 minutes before trying again.");
+                return;
+            }
+
+            bot.addToList(event.command.usr.id);
+
+            // Making another thread for this because it uses blocking commands
+            std::thread t(&Bot108::getStatsRoles, std::ref(bot), event, &Bot108::getBestStatsRoles);
             t.detach();
             return;
         }
@@ -37,16 +56,23 @@ int main(int argc, const char* argv[])
         // Wrap command registration in run_once to make sure it doesnt run on every full reconnection
         if (dpp::run_once<struct register_bot_commands>()) {
 
-            dpp::slashcommand getStatsRolesCommand("get_stats_roles", "Get roles for your stats on VZ."
+            dpp::slashcommand getAllStatsRolesCommand("get_all_stats_roles", "Get all available roles for your stats on VZ."
             " Your Discord must be linked to Hypixel.", bot.me.id);
-            getStatsRolesCommand.add_option(
+            getAllStatsRolesCommand.add_option(
                     dpp::command_option(dpp::co_string, "username", "Your username on Hypixel", true)
             );
 
-            bot.global_command_create(getStatsRolesCommand);
+            dpp::slashcommand getBestStatsRolesCommand("get_best_stats_roles", "Get only best available roles for your stats on VZ."
+            " Your Discord must be linked to Hypixel.", bot.me.id);
+            getBestStatsRolesCommand.add_option(
+                    dpp::command_option(dpp::co_string, "username", "Your username on Hypixel", true)
+            );
+
+            bot.global_command_create(getAllStatsRolesCommand);
+            bot.global_command_create(getBestStatsRolesCommand);
 
             // Uncomment to register all commands again
-            // bot.global_bulk_command_create({getStatsRolesCommand});
+            // bot.global_bulk_command_create({getAllStatsRolesCommand, getBestStatsRolesCommand});
         }
     });
 
