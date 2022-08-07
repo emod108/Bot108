@@ -8,13 +8,13 @@ using json = nlohmann::json;
 Bot108::Bot108() : dpp::cluster(BOT_TOKEN)
 {
     // Reserving some space
-    recentUsers.reserve(maxUsers);
+    recentUsers.reserve(MAX_USERS);
 
     // Making a timer to clear recentUsers
     recentUsersClearTimer = this->start_timer([this] (const dpp::timer&)
     {
         this->clearRecentUsers();
-    }, recentUsersResetFrequency);
+    }, RECENT_USERS_RESET_FREQUENCY);
 }
 
 Bot108::~Bot108()
@@ -25,13 +25,12 @@ Bot108::~Bot108()
 bool Bot108::isListed(const dpp::snowflake userID) const
 {
     // Checking if person is in the list
-    auto result = std::find(recentUsers.begin(), recentUsers.end(), userID);
-    return result != std::end(recentUsers);
+    return std::find(recentUsers.begin(), recentUsers.end(), userID) != std::end(recentUsers);
 }
 
 bool Bot108::canFit() const
 {
-    return recentUsers.size() < maxUsers;
+    return recentUsers.size() < MAX_USERS;
 }
 
 void Bot108::addToList(const dpp::snowflake userID)
@@ -39,8 +38,7 @@ void Bot108::addToList(const dpp::snowflake userID)
     recentUsers.push_back(userID);
 }
 
-void Bot108::getStatsRoles(const dpp::slashcommand_t &event, void (Bot108::*givingMethod)(const dpp::slashcommand_t &,
-    const std::vector<VZRole>&, const std::vector<VZRole>&, const dpp::guild_member&, const uint32_t, const uint32_t))
+void Bot108::getStatsRoles(const dpp::slashcommand_t &event, GivingMethod givingMethod)
 {
     // Getting Minecraft username
     const std::string minecraftUsername = std::get<std::string>(event.get_parameter("username"));
@@ -93,8 +91,8 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, void (Bot108::*givi
             }
 
             // Getting stats
-            const uint32_t humanKills = dataJSON.at("player").at("stats").at("VampireZ").at("human_kills");
-            const uint32_t humanWins = dataJSON.at("player").at("stats").at("VampireZ").at("human_wins");
+            const hypixelStat humanKills = dataJSON.at("player").at("stats").at("VampireZ").at("human_kills");
+            const hypixelStat humanWins = dataJSON.at("player").at("stats").at("VampireZ").at("human_wins");
 
             dpp::guild_member guildMember = this->guild_get_member_sync(event.command.guild_id, event.command.usr.id);
             dpp::role_map roleMap = this->roles_get_sync(guildMember.guild_id);
@@ -104,8 +102,8 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, void (Bot108::*givi
             std::vector<VZRole> vampRoles;
             std::vector<VZRole> humanRoles;
 
-            vampRoles.reserve(50);
-            humanRoles.reserve(50);
+            vampRoles.reserve(ROLES_RESERVE);
+            humanRoles.reserve(ROLES_RESERVE);
 
             // Looking through every guild's role
             for (const auto& [roleID, role] : roleMap) {
@@ -117,12 +115,14 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, void (Bot108::*givi
                     if (sz == std::string::npos)
                         continue;
 
+                    // Try-catch block if stod fails to convert string
                     try
                     {
+                        // Using double because string can contain a decimal number
                         double number = std::stod(role.name);
                         if (sz != 0 && role.name[sz - 1] == 'k')
                             number *= 1000;
-                        vampRoles.push_back(VZRole(roleID, number));
+                        vampRoles.push_back(VZRole(roleID, static_cast<hypixelStat>(number)));
                     }
                     catch (std::invalid_argument&) {}
                 }
@@ -135,7 +135,7 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, void (Bot108::*givi
                         double number = std::stod(role.name);
                         if (sz != 0 && role.name[sz - 1] == 'k')
                             number *= 1000;
-                        humanRoles.push_back(VZRole(roleID, number));
+                        humanRoles.push_back(VZRole(roleID, static_cast<hypixelStat>(number)));
                     }
                     catch (std::invalid_argument&) {}
                 }
@@ -154,8 +154,7 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, void (Bot108::*givi
 
 
 void Bot108::getAllStatsRoles(const dpp::slashcommand_t &event, const std::vector<VZRole> &vampRoles,
-    const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const uint32_t humanKills,
-    const uint32_t humanWins)
+    const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const hypixelStat humanKills, const hypixelStat humanWins)
 {
     // Give all vamp roles
     for (const auto& role : vampRoles) {
@@ -173,19 +172,18 @@ void Bot108::getAllStatsRoles(const dpp::slashcommand_t &event, const std::vecto
 }
 
 void Bot108::getBestStatsRoles(const dpp::slashcommand_t &event, const std::vector<VZRole> &vampRoles,
-    const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const uint32_t humanKills,
-    const uint32_t humanWins)
+    const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const hypixelStat humanKills, const hypixelStat humanWins)
 {
-    uint32_t vampRoleIndex = -1;
-    uint32_t humanRoleIndex = -1;
+    int32_t vampRoleIndex = -1;
+    int32_t humanRoleIndex = -1;
 
     // Checking all found V roles
-    for (int i = 0; i < vampRoles.size(); ++i) {
+    for (size_t i = 0; i < vampRoles.size(); ++i) {
         // Number of human kills must be higher than role has
         if (humanKills < vampRoles[i].number)
             continue;
 
-        // If role with highest number isn't set yet, then set current one
+        // If role with the highest number isn't set yet, then set current one
         // Otherwise, compare numbers and pick the highest one
         if (vampRoleIndex == -1)
             vampRoleIndex = i;
@@ -194,7 +192,7 @@ void Bot108::getBestStatsRoles(const dpp::slashcommand_t &event, const std::vect
     }
 
     // Same for H roles
-    for (int i = 0; i < humanRoles.size(); ++i) {
+    for (size_t i = 0; i < humanRoles.size(); ++i) {
         if (humanWins < humanRoles[i].number)
             continue;
             
@@ -243,7 +241,7 @@ void Bot108::getBestStatsRoles(const dpp::slashcommand_t &event, const std::vect
     event.reply("Done.");
 }
 
-std::string Bot108::getErrorReason(const uint16_t status) const
+std::string Bot108::getErrorReason(const uint32_t status) const
 {
     switch (status) {
         case HY_RESPONSE_DATA_MISSING:

@@ -1,4 +1,5 @@
 #include "bot108.hpp"
+#include <dpp/once.h>
 
 int main(int argc, const char* argv[])
 {
@@ -33,7 +34,7 @@ int main(int argc, const char* argv[])
 
         if (command == "get_best_stats_roles") {
             if (bot.isListed(event.command.usr.id)) {
-                event.reply("You have already used similar command recently. Wait for 1-2 minutes before trying again.");
+                event.reply("You have already similar command recently. Wait for 1-2 minutes before trying again.");
                 return;
             }
 

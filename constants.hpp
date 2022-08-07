@@ -22,8 +22,14 @@ enum MC_Response
 // Bot info
 const std::string BOT_TOKEN = "-"; /* INSERT YOUR DISCORD BOT TOKEN HERE */
 
-const size_t maxUsers = 120;
-const uint64_t recentUsersResetFrequency = 120; // seconds
+// How much users can use the bot per one API refresh cycle
+const size_t MAX_USERS = 120;
+
+// Delay between the clearing of the recent users list in seconds
+const uint64_t RECENT_USERS_RESET_FREQUENCY = 120;
+
+// How much space should be reserved for stats roles in vectors
+const size_t ROLES_RESERVE = 50;
 
 // Hypixel info
 const std::string HYPIXEL_API = "https://api.hypixel.net/";
