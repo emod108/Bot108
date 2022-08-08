@@ -1,3 +1,6 @@
+#ifndef BOT108_HPP
+#define BOT108_HPP
+
 #include <dpp/cluster.h>
 
 using hypixelStat = uint32_t;
@@ -33,6 +36,8 @@ public:
 
     void getBestStatsRoles(const dpp::slashcommand_t &event, const std::vector<VZRole> &vampRoles, const std::vector<VZRole> &humanRoles,
     const dpp::guild_member &guildMember, const hypixelStat humanKills, const hypixelStat humanWins);
+
+    void EZ(const dpp::slashcommand_t &event);
 private:
     std::string getErrorReason(const uint32_t status) const;
     void clearRecentUsers();
@@ -40,3 +45,5 @@ private:
     std::vector<dpp::snowflake> recentUsers;
     dpp::timer recentUsersClearTimer;
 };
+
+#endif // BOT108_HPP

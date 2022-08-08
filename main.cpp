@@ -1,4 +1,5 @@
 #include "bot108.hpp"
+#include "constants.hpp"
 #include <dpp/once.h>
 
 int main(int argc, const char* argv[])
@@ -50,6 +51,16 @@ int main(int argc, const char* argv[])
             t.detach();
             return;
         }
+
+        if (command == "github") {
+            event.reply(GITHUB);
+            return;
+        }
+
+        if (command == "ez") {
+            bot.EZ(event);
+            return;
+        }
     });
 
     // Register slash commands
@@ -69,11 +80,17 @@ int main(int argc, const char* argv[])
                     dpp::command_option(dpp::co_string, "username", "Your username on Hypixel", true)
             );
 
+            dpp::slashcommand github("github", "Look at this bot on github.", bot.me.id);
+
+            dpp::slashcommand EZ("ez", "EZ", bot.me.id);
+
             bot.global_command_create(getAllStatsRolesCommand);
             bot.global_command_create(getBestStatsRolesCommand);
+            bot.global_command_create(github);
+            bot.global_command_create(EZ);
 
             // Uncomment to register all commands again
-            // bot.global_bulk_command_create({getAllStatsRolesCommand, getBestStatsRolesCommand});
+            // bot.global_bulk_command_create({getAllStatsRolesCommand, getBestStatsRolesCommand, github, ez});
         }
     });
 
