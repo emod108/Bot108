@@ -40,94 +40,127 @@ void Bot108::addToList(const dpp::snowflake userID)
     recentUsers.push_back(userID);
 }
 
+uint64_t Bot108::randomNumber(const uint64_t lowerBoundary, const uint64_t upperBoundary) const
+{
+    // Will be used to obtain a seed for the random number engine
+    std::random_device rd;
+
+    // Standard mersenne_twister_engine seeded with rd()
+    std::mt19937 gen(rd()); 
+
+    // Range of numbers
+    std::uniform_int_distribution<uint64_t> distrib(lowerBoundary, upperBoundary); 
+
+    // Generating random number and replying with the string at this index
+    return distrib(gen);
+}
+
 void Bot108::getStatsRoles(const dpp::slashcommand_t &event, GivingMethod givingMethod)
 {
-    // Getting Minecraft username
+    // thinking() extends response time from 3 seconds up to 15 minutes
+    // This is necessary because here we work with work with 2 API requests (excluding Discord)
+    // and we potentially loop through up to 6250 roles! (But usually bot works with MUCH smaller number of roles)
+    // Because thinking() also counts as a response, following replying to an event must be done via edit_original_response()
+    event.thinking();
+
+    // Getting Minecraft username from slash command parameter
     const std::string minecraftUsername = std::get<std::string>(event.get_parameter("username"));
 
     // First API request
     // Converting minecraft username to uuid using Mojang API
     this->request(MOJANG_API + minecraftUsername, dpp::http_method::m_get,
-    [this, event, givingMethod] (const dpp::http_request_completion_t &got)
+    [this, event = std::move(event), givingMethod] (const dpp::http_request_completion_t &got)
     {
         // Error checking
         if (got.status != MC_RESPONSE_SUCCESS) {
-            event.reply("Couldn't find such username.");
+            event.edit_original_response(dpp::message("Sorry, but I couldn't find such username. Please, check if you typed your username"
+            " correctly and try again later. Username is CaSe-SeNsItIvE."));
             return;
         }
 
-        //  Parsing json file and getting uuid from it
+        //  Parsing received json file and getting uuid from it
         const json uuidJSON = json::parse(got.body.cbegin(), got.body.cend());
         const std::string uuid = uuidJSON["id"];
 
         // Second API request
         // Getting discord from Hypixel and checking if it's same
         this->request(HYPIXEL_API + REQUEST_PLAYER + FIELD_KEY + HYPIXEL_API_KEY + FIELD_SEPARATOR + FIELD_UUID + uuid,
-        dpp::http_method::m_get, [this, event, givingMethod]
+        dpp::http_method::m_get, [this, event = std::move(event), givingMethod]
         (const dpp::http_request_completion_t &got)
         {
-            // Checking status
+            // Error checking
             if (got.status != HY_RESPONSE_SUCCESS) {
-                event.reply("Hypixel API test request failed.\nReason: " + getErrorReason(got.status));
+                event.edit_original_response(dpp::message("Sorry, but my Hypixel API request has failed.\nReason: "
+                + getErrorReason(got.status) + "Please, try again later."));
                 return;
             }
 
-            // Parsing result
+            // Parsing json file and getting information from it
             const json dataJSON = json::parse(got.body.cbegin(), got.body.cend());
             std::string hypixelDiscord;
 
-            // Getting discord and checking if it's linked'
+            // json::parse() throws json::out_of_range exception if it couldn't find specified field
+            // It can happen in case if Hypixel account doesn't have Discord linked to it
+            // To handle this we simply tell our user to link his account
             try {
                 hypixelDiscord = dataJSON.at("player").at("socialMedia").at("links").at("DISCORD");
             }
             catch (json::out_of_range&)
             {
-                event.reply("Your Discord is not linked to this Hypixel account!");
+                event.edit_original_response(dpp::message("Sorry, but this Hypixel account has no Discord linked to it. Please, check"
+                " that it is linked and try again later. Also check if you typed your username correctly. Username is CaSe-SeNsItIvE."));
                 return;
             }
 
             // Checking if user's discord corresponds to linked on Hypixel
+            // We are doing it so only owner of this account can get roles for its stats
             if (event.command.usr.format_username() != hypixelDiscord) {
-                event.reply("Your Discord is not linked to this Hypixel account!");
+                event.edit_original_response(dpp::message("Sorry, but this Hypixel account has another Discord linked to it!"
+                " Please, check if you typed your username correctly and try again later. Username is CaSe-SeNsItIvE."));
                 return;
             }
 
-            // Getting stats
+            // Getting stats from parsed json file
             const hypixelStat humanKills = dataJSON.at("player").at("stats").at("VampireZ").at("human_kills");
             const hypixelStat humanWins = dataJSON.at("player").at("stats").at("VampireZ").at("human_wins");
 
+            // Getting lsit of all roles on the server and all roles this user has
             dpp::guild_member guildMember = this->guild_get_member_sync(event.command.guild_id, event.command.usr.id);
             dpp::role_map roleMap = this->roles_get_sync(guildMember.guild_id);
 
             // Vectors which will contain roles
-            // Roles example: "10k+ H Kills", "1k+ H Wins"
+            // Roles syntax example: "10k+ H Kills", "1.5k+ H Wins"
             std::vector<VZRole> vampRoles;
             std::vector<VZRole> humanRoles;
 
+            // Reserving some space for vectors so they won't spend time on allocating and copying elements
+            // every time new element was inserted
             vampRoles.reserve(ROLES_RESERVE);
             humanRoles.reserve(ROLES_RESERVE);
 
             // Looking through every guild's role
             for (const auto& [roleID, role] : roleMap) {
-
-                // Checking ending and getting number
+                // Checking role's ending to find out if it's one of stats roles
                 std::string::size_type sz;
                 if (role.name.find("H Kills") != std::string::npos) {
                     sz = role.name.find_first_of("+");
                     if (sz == std::string::npos)
                         continue;
 
-                    // Try-catch block if stod fails to convert string
+                    // Getting number out of role's beginning
+                    // Try-catch block in case if std::stod() fails to convert string to double
                     try
                     {
                         // Using double because string can contain a decimal number
                         double number = std::stod(role.name);
                         if (sz != 0 && role.name[sz - 1] == 'k')
                             number *= 1000;
+
+                        // Converting to unsigned 32 bit integer and pushing it to its stats roles vector
                         vampRoles.push_back(VZRole(roleID, static_cast<hypixelStat>(number)));
                     }
                     catch (std::invalid_argument&) {}
-                }
+                } // Doing the same thing, but now for human roles
                 else if (role.name.find("H Wins") != std::string::npos) {
                     sz = role.name.find_first_of("+");
                     if (sz == std::string::npos)
@@ -143,57 +176,62 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, GivingMethod giving
                 }
             }
 
-            // If no correct roles found
+            // If either no correct human or vampire roles were found
             if (vampRoles.size() == 0 || humanRoles.size() == 0) {
-                event.reply("This guild doesn't have human or vampire stats roles present.");
+                event.edit_original_response(dpp::message("Sorry, but I couldn't find either human or vampire stats roles on this server."
+                " Please, check if this server has such roles and their syntax is correct."
+                " Syntax example: \"10k+ H Kills\", \"1.5k+ H Wins\""));
                 return;
             }
 
+            // Calling needed methond of giving out stats roles
+            // getAllStatsRoles() gives all roles available
+            // getBestStatsRoles() gives only highest available roles with removing old ones
             (*this.*givingMethod)(event, vampRoles, humanRoles, guildMember, humanKills, humanWins);
         });
     });
 }
 
-
 void Bot108::getAllStatsRoles(const dpp::slashcommand_t &event, const std::vector<VZRole> &vampRoles,
     const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const hypixelStat humanKills, const hypixelStat humanWins)
 {
-    // Give all vamp roles
+    // Give all available vampire roles
     for (const auto& role : vampRoles) {
         if (role.number <= humanKills)
             this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
         }
 
-    // Give all human roles
+    // Give all available human roles
     for (const auto& role : humanRoles) {
         if (role.number <= humanWins)
             this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, role.roleID);
     }
 
-    event.reply("Done.");
+    event.edit_original_response(dpp::message("Done."));
 }
 
 void Bot108::getBestStatsRoles(const dpp::slashcommand_t &event, const std::vector<VZRole> &vampRoles,
     const std::vector<VZRole> &humanRoles, const dpp::guild_member &guildMember, const hypixelStat humanKills, const hypixelStat humanWins)
 {
+    // Indexes of best vampire and human stats role
     int32_t vampRoleIndex = -1;
     int32_t humanRoleIndex = -1;
 
-    // Checking all found V roles
+    // Checking all found vampire roles
     for (size_t i = 0; i < vampRoles.size(); ++i) {
-        // Number of human kills must be higher than role has
+        // Number of user's human kills must be higher than role has so it'll be available
         if (humanKills < vampRoles[i].number)
             continue;
 
-        // If role with the highest number isn't set yet, then set current one
-        // Otherwise, compare numbers and pick the highest one
+        // If role with the highest number isn't set yet, then set the current one
+        // Otherwise, compare numbers and pick the role with the highest one
         if (vampRoleIndex == -1)
             vampRoleIndex = i;
         else
             vampRoleIndex = (vampRoles[i].number > vampRoles[vampRoleIndex].number) ? i : vampRoleIndex;
     }
 
-    // Same for H roles
+    // Same for human roles
     for (size_t i = 0; i < humanRoles.size(); ++i) {
         if (humanWins < humanRoles[i].number)
             continue;
@@ -204,30 +242,31 @@ void Bot108::getBestStatsRoles(const dpp::slashcommand_t &event, const std::vect
             humanRoleIndex = (humanRoles[i].number > humanRoles[humanRoleIndex].number) ? i : humanRoleIndex;
     }
 
-    // Checking old roles and removing them if needed
+    // Checking old roles and removing them if needed by comparing them to old user's roles
     for (const auto &oldRole : guildMember.roles) {
-        // If at least one suitable vamp role was found
+        // If we found out that it's a vampire role, no need to check if it's human one
         bool roleWasFound = false;
+
         if (vampRoleIndex != -1) {
             for (const auto &vampRole : vampRoles) {
                 if (oldRole == vampRole.roleID) {
                     // If role was found, then stop checking roles
                     roleWasFound = true;
 
-                    // Remove if it's not highest possible
+                    // Remove if it's not highest available
                     if (oldRole != vampRoles[vampRoleIndex].roleID)
-                        this->guild_member_remove_role(guildMember.guild_id, guildMember.user_id, oldRole);
+                        this->guild_member_remove_role_sync(guildMember.guild_id, guildMember.user_id, oldRole);
                     break;
                 }
             }
         }
 
-        // Doing same for human
+        // Doing the same thing for human roles
         if (!roleWasFound && humanRoleIndex != -1) {
             for (const auto &humanRole : humanRoles) {
                 if (oldRole == humanRole.roleID) {
                     if (oldRole != humanRoles[humanRoleIndex].roleID)
-                        this->guild_member_remove_role(guildMember.guild_id, guildMember.user_id, oldRole);
+                        this->guild_member_remove_role_sync(guildMember.guild_id, guildMember.user_id, oldRole);
                     break;
                 }
             }
@@ -236,64 +275,11 @@ void Bot108::getBestStatsRoles(const dpp::slashcommand_t &event, const std::vect
 
     // Give new roles
     if (vampRoleIndex != -1)
-        this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, vampRoles[vampRoleIndex].roleID);
+        this->guild_member_add_role_sync(guildMember.guild_id, guildMember.user_id, vampRoles[vampRoleIndex].roleID);
     if (humanRoleIndex != -1)
-        this->guild_member_add_role(guildMember.guild_id, guildMember.user_id, humanRoles[humanRoleIndex].roleID);
+        this->guild_member_add_role_sync(guildMember.guild_id, guildMember.user_id, humanRoles[humanRoleIndex].roleID);
 
-    event.reply("Done.");
-}
-
-void Bot108::EZ(const dpp::slashcommand_t &event)
-{
-    // Array of all possible strings
-    static const std::vector<std::string> ezMessages {
-        "Wait... This isn't what I typed!",
-        "Anyone else really like Rick Astley?",
-        "Hey helper, how play game?",
-        "Sometimes I sing soppy, love songs in the car.",
-        "I like long walks on the beach and playing Hypixel",
-        "Please go easy on me, this is my first game!",
-        "You're a great person! Do you want to play some Hypixel games with me?",
-        "In my free time I like to watch cat videos on Youtube",
-        "When I saw the witch with the potion, I knew there was trouble brewing.",
-        "If the Minecraft world is infinite, how is the sun spinning around it?",
-        "Hello everyone! I am an innocent player who loves everything Hypixel.",
-        "Plz give me doggo memes!",
-        "I heard you like Minecraft, so I built a computer in Minecraft in your Minecraft so you can Minecraft while you Minecraft",
-        "Why can't the Ender Dragon read a book? Because he always starts at the End.",
-        "Maybe we can have a rematch?",
-        "I sometimes try to say bad things then this happens :(",
-        "Behold, the great and powerful, my magnificent and almighty nemisis!",
-        "Doin a bamboozle fren.",
-        "Your clicks per second are godly.",
-        "What happens if I add chocolate milk to macaroni and cheese?",
-        "Can you paint with all the colors of the wind",
-        "Blue is greener than purple for sure",
-        "I had something to say, then I forgot it.",
-        "When nothing is right, go left.",
-        "I need help, teach me how to play!",
-        "Your personality shines brighter than the sun.",
-        "You are very good at the game friend.",
-        "I like pineapple on my pizza",
-        "I like pasta, do you prefer nachos?",
-        "I like Minecraft pvp but you are truly better than me!",
-        "I have really enjoyed playing with you! <3",
-        "ILY <3",
-        "Pineapple doesn't go on pizza!",
-        "Lets be friends instead of fighting okay?",
-    };
-
-    // Will be used to obtain a seed for the random number engine
-    std::random_device rd;
-
-    // Standard mersenne_twister_engine seeded with rd()
-    std::mt19937 gen(rd()); 
-
-    // Range of numbers
-    std::uniform_int_distribution<size_t> distrib(0, ezMessages.size() - 1); 
-
-    // Generating random number and replying with the string at this index
-    event.reply(ezMessages[distrib(gen)]);
+    event.edit_original_response(dpp::message("Done."));
 }
 
 std::string Bot108::getErrorReason(const uint32_t status) const
