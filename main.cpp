@@ -64,6 +64,12 @@ int main(int argc, const char* argv[])
             return;
         }
 
+        if (command == "imbad") {
+            // Generating random number and replying with the string at this index
+            event.reply(IMBAD_MESSAGES[bot.randomNumber(0, IMBAD_MESSAGES.size() - 1)]);
+            return;
+        }
+
         if (command == "convert") {
             // Telling the user to pick a measurement type
             dpp::message conversionMenu("Please, pick a measurement type:");
@@ -339,16 +345,19 @@ int main(int argc, const char* argv[])
 
             dpp::slashcommand EZ("ez", "EZ", bot.me.id);
 
+            dpp::slashcommand imbad("imbad", "I am going to prove you wrong!", bot.me.id);
+
             dpp::slashcommand convert("convert", "Convert one measurement unit to another", bot.me.id);
 
             bot.global_command_create(getAllStatsRolesCommand);
             bot.global_command_create(getBestStatsRolesCommand);
             bot.global_command_create(github);
             bot.global_command_create(EZ);
-            bot.global_command_create(convert);
+            bot.global_command_create(imbad);
+            bot.global_command_create(convert);  
 
             // Uncomment to register all commands again
-            // bot.global_bulk_command_create({getAllStatsRolesCommand, getBestStatsRolesCommand, github, ez});
+            // bot.global_bulk_command_create({ TYPE_ALL_COMMANDS });
         }
     });
 
