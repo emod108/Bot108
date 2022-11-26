@@ -5,8 +5,15 @@
 
 int main(int argc, const char* argv[])
 {
+    // We need a Dicord Bot Token and a Hypixel API key to proceed further
+    if (argc != 3) {
+        std::cout << "Incorrect number of arguments provided!\n"
+        "Required arguments: BOT_TOKEN HYPIXEL_API_KEY\n";
+        return -1;
+    }
+
     // Create the bot    
-    Bot108 bot;
+    Bot108 bot(argv[1], argv[2]);
 
     // Tell that bot is ready
     bot.on_log(dpp::utility::cout_logger());

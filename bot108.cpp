@@ -1,13 +1,13 @@
 #include "bot108.hpp"
 #include "constants.hpp"
-#include "configurations.hpp"
 #include <random>
 
 #include <dpp/nlohmann/json.hpp>
 
 using json = nlohmann::json;
 
-Bot108::Bot108() : dpp::cluster(BOT_TOKEN)
+Bot108::Bot108(const std::string &token, const std::string &hypixelKey)
+    : dpp::cluster(token), hypixelKey(hypixelKey)
 {
     // Reserving some space
     recentUsers.reserve(MAX_USERS);
@@ -40,13 +40,17 @@ void Bot108::addToList(const dpp::snowflake userID)
     recentUsers.push_back(userID);
 }
 
-uint64_t Bot108::randomNumber(const uint64_t lowerBoundary, const uint64_t upperBoundary) const
-{
+uint64_t Bot108::randomNumber(uint64_t lowerBoundary, uint64_t upperBoundary) const
+{   
     // Will be used to obtain a seed for the random number engine
-    std::random_device rd;
+    static std::random_device rd;
 
     // Standard mersenne_twister_engine seeded with rd()
-    std::mt19937 gen(rd()); 
+    static std::mt19937 gen(rd());
+
+    // Swapping variables in case if lower number is set as upper boundary
+    if (lowerBoundary > upperBoundary)
+        std::swap(lowerBoundary, upperBoundary);
 
     // Range of numbers
     std::uniform_int_distribution<uint64_t> distrib(lowerBoundary, upperBoundary); 
@@ -84,7 +88,7 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, GivingMethod giving
 
         // Second API request
         // Getting discord from Hypixel and checking if it's same
-        this->request(HYPIXEL_API + REQUEST_PLAYER + FIELD_KEY + HYPIXEL_API_KEY + FIELD_SEPARATOR + FIELD_UUID + uuid,
+        this->request(HYPIXEL_API + REQUEST_PLAYER + FIELD_KEY + this->hypixelKey + FIELD_SEPARATOR + FIELD_UUID + uuid,
         dpp::http_method::m_get, [this, event = std::move(event), givingMethod]
         (const dpp::http_request_completion_t &got)
         {

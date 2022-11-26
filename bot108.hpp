@@ -23,13 +23,13 @@ public:
     using GivingMethod = void (Bot108::*)(const dpp::slashcommand_t&, const std::vector<VZRole>&, const std::vector<VZRole>&,
     const dpp::guild_member&, const hypixelStat, const hypixelStat);
 
-    Bot108();
+    Bot108(const std::string &token, const std::string &hypixelKey);
     virtual ~Bot108();
     bool isListed(const dpp::snowflake userID) const;
     bool canFit() const;
     void addToList(const dpp::snowflake userID);
 
-    uint64_t randomNumber(const uint64_t lowerBoundary, const uint64_t upperBoundary) const;
+    uint64_t randomNumber(uint64_t lowerBoundary, uint64_t upperBoundary) const;
 
     void getStatsRoles(const dpp::slashcommand_t &event, GivingMethod givingMethod);
     
@@ -41,6 +41,8 @@ public:
 private:
     std::string getErrorReason(const uint32_t status) const;  
     void clearRecentUsers();
+
+    const std::string hypixelKey;
 
     // TODO:
     // 1) Implement creation of a separate timer for every recent user instead of making one for all
