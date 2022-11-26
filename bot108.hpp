@@ -7,10 +7,10 @@ using hypixelStat = uint32_t;
 
 struct VZRole
 {
-    constexpr VZRole(const dpp::snowflake ID, const hypixelStat num)
+     VZRole(const dpp::snowflake ID, const hypixelStat num)
         : roleID(ID), number(num) {}
 
-    constexpr VZRole(const VZRole &another)
+    VZRole(const VZRole &another)
         : roleID(another.roleID), number(another.number) {}
 
     dpp::snowflake roleID;
