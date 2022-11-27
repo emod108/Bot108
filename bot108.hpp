@@ -1,7 +1,7 @@
 #ifndef BOT108_HPP
 #define BOT108_HPP
 
-#include <dpp/cluster.h>
+#include <dpp/dpp.h>
 
 using hypixelStat = uint32_t;
 

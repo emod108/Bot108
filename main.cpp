@@ -1,14 +1,13 @@
 #include "bot108.hpp"
 #include "measurement.hpp"
 #include "constants.hpp"
-#include <dpp/once.h>
+#include <dpp/dpp.h>
 
-int main(int argc, const char* argv[])
+int main(int argc, char* argv[])
 {
-    // We need a Dicord Bot Token and a Hypixel API key to proceed further
     if (argc != 3) {
-        std::cout << "Incorrect number of arguments provided!\n"
-        "Required arguments: BOT_TOKEN HYPIXEL_API_KEY\n";
+        std::cout << "Incorrect number of arguments!\n"
+        "Required arguments are: BOT_TOKEN HYPIXEL_API_KEY\n";
         return -1;
     }
 
