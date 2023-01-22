@@ -110,7 +110,7 @@ inline const std::vector<std::string> IMBAD_MESSAGES {
 inline const size_t MAX_USERS = 120;
 
 // Delay between the clearing of the recent users list in seconds
-inline const uint64_t RECENT_USERS_RESET_FREQUENCY = 1;
+inline const uint64_t RECENT_USERS_RESET_FREQUENCY = 60;
 
 // How much space should be reserved for stats roles in vectors
 inline const size_t ROLES_RESERVE = 50;

@@ -119,8 +119,9 @@ void Bot108::getStatsRoles(const dpp::slashcommand_t &event, GivingMethod giving
             // Checking if user's discord corresponds to linked on Hypixel
             // We are doing it so only owner of this account can get roles for its stats
             if (event.command.usr.format_username() != hypixelDiscord) {
-                event.edit_original_response(dpp::message("Sorry, but this Hypixel account has another Discord linked to it!"
-                " Please, check if you typed your username correctly and try again later. Username is CaSe-SeNsItIvE."));
+                event.edit_original_response(dpp::message("Sorry, but this Hypixel account has another Discord linked to it! ("
+                + hypixelDiscord + " )\nPlease, check if you typed your username correctly and try again later. "
+                "Username is CaSe-SeNsItIvE."));
                 return;
             }
 

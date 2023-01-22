@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <vector>
+#include <string>
 
 // To make conversion easily, one base unit of each type will be choosen, and using it we will be able to convert everything
 
